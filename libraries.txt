@@ -1,0 +1,7 @@
+Installer ces bibliothèques dans Arduino IDE :
+- Adafruit MLX90640
+- Adafruit ADXL345
+- Adafruit Unified Sensor
+- NimBLE-Arduino (mainteneur h2zero)
+
+Vérifier les versions installées et la compatibilité de l'ESP32 core avant compilation.

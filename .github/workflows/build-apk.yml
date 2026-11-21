@@ -1,0 +1,121 @@
+name: Construire SMART-THERMOELEC MP
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - principal
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Recuperer le depot
+        uses: actions/checkout@v4
+
+      - name: Installer Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Installer Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Verifier les fichiers
+        run: |
+          echo "Contenu du depot :"
+          ls -lah
+
+          ZIP_FILE=$(find . -maxdepth 1 \
+            -name 'SMART-THERMOELEC-MP-cloud-build.zip' \
+            -print -quit)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERREUR : Archive ZIP introuvable"
+            exit 1
+          fi
+
+          echo "Archive trouvee : $ZIP_FILE"
+
+      - name: Extraire le code source
+        run: |
+          mkdir -p extracted
+
+          unzip -q SMART-THERMOELEC-MP-cloud-build.zip \
+            -d extracted
+
+          echo "Extraction terminee"
+
+          find extracted -maxdepth 4 -type f \
+            | head -100
+
+      - name: Detecter le projet Android
+        run: |
+          PROJECT_FILE=$(find extracted -type f \
+            \( -name settings.gradle \
+            -o -name settings.gradle.kts \) \
+            -print -quit)
+
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "ERREUR : Projet Android introuvable"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+
+          echo "ANDROID_PROJECT_DIR=$PROJECT_DIR" \
+            >> "$GITHUB_ENV"
+
+          echo "Projet detecte : $PROJECT_DIR"
+
+      - name: Installer Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compiler SMART-THERMOELEC MP
+        run: |
+          cd "$ANDROID_PROJECT_DIR"
+
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew --no-daemon \
+              --stacktrace assembleDebug
+          else
+            gradle --no-daemon \
+              --stacktrace assembleDebug
+          fi
+
+      - name: Verifier la generation APK
+        run: |
+          APK=$(find "$ANDROID_PROJECT_DIR" \
+            -type f \
+            -path '*/build/outputs/apk/debug/*.apk' \
+            -print -quit)
+
+          if [ -z "$APK" ]; then
+            echo "ERREUR : APK non genere"
+            exit 1
+          fi
+
+          echo "APK genere avec succes : $APK"
+
+          mkdir -p apk_final
+
+          cp "$APK" apk_final/SMART-THERMOELEC-MP.apk
+
+      - name: Publier APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SMART-THERMOELEC-MP-APK
+          path: apk_final/SMART-THERMOELEC-MP.apk
+          if-no-files-found: error
+          retention-days: 14
